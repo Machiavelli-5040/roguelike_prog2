@@ -182,11 +182,11 @@ object Map
     var rooms = MapObject[(Int, Int), Room]()
 
     rooms += (0,0) -> RoomCreator.create("room1")
-    rooms += (0,1) -> RoomCreator.create("room2")
+    /*rooms += (0,1) -> RoomCreator.create("room2")
     rooms += (1,0) -> RoomCreator.create("room3")
 
     rooms((0,0)).tiles((5,13)).asInstanceOf[Door].connectDoor(rooms((0,1)).tiles((5,0)).asInstanceOf[Door])
-    rooms((0,0)).tiles((13,5)).asInstanceOf[Door].connectDoor(rooms((1,0)).tiles((0,10)).asInstanceOf[Door])
+    rooms((0,0)).tiles((13,5)).asInstanceOf[Door].connectDoor(rooms((1,0)).tiles((0,10)).asInstanceOf[Door])*/
 
     /** Display the entirety of the map on the screen */
     def show() = 
@@ -281,7 +281,7 @@ object Map
                 return room.load(p)
         }
         return rooms(0,0).tiles(0,0)  // default value
-    }
+    }                                                               /////////////////////////////////////////////////////////////!\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
     def isInbound(p:Point):Boolean =
     {
@@ -370,7 +370,6 @@ class Receptacle(coord:Point, val room:Room, val itemToPlace:String) extends Til
       case Some(i)  => full = i.name == itemToPlace
       case _        => ()
     }
-    //TODO: change texture if the good item is in the receptacle
   }
   override def show():Unit=
   {
@@ -403,8 +402,8 @@ object Room
     else
       json = json(index)
 
-    val shape = "square"
-    val size = MapObject("x" -> JsonTools.load(json("size"), "x", 10))  // TODO: in the future the shape of a room could depend on several parameters
+    val shape = JsonTools.load(json, "shape", "square")
+    val size = MapObject("x" -> JsonTools.load(json("size"), "x", 10))
     val enemies = loadEnemies(json)
     val doors = loadDoors(json)
     val items = loadItems(json)
@@ -509,12 +508,28 @@ case class Room()
   {
     var i = 0
     var j = 0
-    for (i <- 0 to size("x"); j <- 0 to size("x"))
+
+    tiles += (0, 0) -> new Wall(new Point(0,0))
+    if (shape == "square")
     {
-      if (i == size("x") || j == size("x") || i == 0 || j == 0)
-        tiles += (i, j) -> new Wall(new Point(i,j))
-      else
-        tiles += (i, j) -> new Tile(new Point(i,j))
+        for (i <- 0 to size("x"); j <- 0 to size("x"))
+        {
+            if (i == size("x") || j == size("x") || i == 0 || j == 0)
+                tiles += (i, j) -> new Wall(new Point(i,j))
+            else
+                tiles += (i, j) -> new Tile(new Point(i,j))
+        }
+    }
+    else if (shape == "hex")
+    {
+        var center = new Point(size("x"),size("x"))
+        for (i <- 0 to 2*size("x"); j <- 0 to 2*size("x"))
+        {
+            if (center.distance(new Point(i,j)) < size("x"))
+                tiles += (i, j) -> new Tile(new Point(i,j))
+            else if (center.distance(new Point(i,j)) == size("x"))
+                tiles += (i, j) -> new Wall(new Point(i,j))
+        }
     }
     enemy.foreach
     {
