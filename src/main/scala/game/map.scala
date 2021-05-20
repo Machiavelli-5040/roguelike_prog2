@@ -53,9 +53,9 @@ object Tile
         res += s"}"
     return res
   }
-  def load(_json:ujson.Value):Tile =
+  def load(json:ujson.Value):Tile =
   {
-    val tile = new Room(upickle.default.read[Point](json("coord")))
+    val tile = new Tile(upickle.default.read[Point](json("coord")))
     tile.item = upickle.default.read[Option[Item]](json("item"))
     tile.entity = upickle.default.read[Option[SentientEntity]](json("entity"))
     tile.walkable = upickle.default.read[Boolean](json("walkable"))
