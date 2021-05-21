@@ -186,7 +186,7 @@ class NeutralNPC(animation:Animation, pos:Point, name:String, fly:Boolean, weapo
   
   override def IA()
   {
-    if (!neutral || lastHitBy == Game.player)
+    if (!neutral || lastHitBy != this)
     {
       neutral = false
       super.IA()

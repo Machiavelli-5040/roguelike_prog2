@@ -57,7 +57,7 @@ object Item {
 }
 
 
-abstract class Item(override val animation:Animation = Animation("item.png", 1))
+abstract class Item(override val animation:Animation = new Animation("item.png", 1))
     extends Entity(animation, new Point(0,0), GameWindow.contextGame)
 {
   val name:String
@@ -86,7 +86,7 @@ object Key{
       //json => new Key
     //)
 }
-case class Key(val name:String, val description:String, val price:Int, val rarity:Int, val weight:Int) extends Item(Animation("key.png", 1))
+case class Key(val name:String, val description:String, val price:Int, val rarity:Int, val weight:Int) extends Item(new Animation("key.png", 1))
 {
   def onUse(user:SentientEntity) =
   {
@@ -116,7 +116,7 @@ case class Jewel(val name:String, val description:String, val price:Int, val rar
     }
   }
 }
-class Gem(val name:String, val description:String, val price:Int, val rarity:Int, val weight:Int) extends Item(Animation("gem.png", 1))
+class Gem(val name:String, val description:String, val price:Int, val rarity:Int, val weight:Int) extends Item(new Animation("gem.png", 1))
 {
   def onUse(user:SentientEntity)=
   {

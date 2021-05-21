@@ -10,14 +10,17 @@ import graphics._
 import messageHandler._
 import scalafx.scene.input.KeyCode
 import json._
+import client._
+import server._
+import socket._
 
 object Game
 {
-    val player = new Player()
+    var playerVector:Vector[Player] = Vector()
     val cursor = new Cursor(GameWindow.contextGame)
     var currentPhase = ""
-    var currentWeapon = player.weapon
-    var speakingTo:SentientEntity = player
+    var currentWeapon = Client.player.weapon
+    var speakingTo:SentientEntity = Client.player
 
     var enemiesVector:Vector[Enemy] = Vector()
 
@@ -31,7 +34,7 @@ object Game
         case "Space"  => handleSelection()
         case "Esc"    => setPhase("move")
         case "E"      => setPhase("inventory")
-        case "F"      => player.inventory.drop()
+        case "F"      => Client.player.inventory.drop()
         case "G"      => pickUp()
         case "S"      => speak()
         case "T"      => trade()
@@ -47,10 +50,10 @@ object Game
         var selectionPhase = true // Are we selcting a tile on the map
         if(phase == "move")
         {
-          Map.setHighlight((p:Point)=>(player.pos.distance(p) <= player.curAP && player.curAP > 0), highlightPlayer=true)
+          Map.setHighlight((p:Point)=>(Client.player.pos.distance(p) <= Client.player.curAP && Client.player.curAP > 0), highlightPlayer=true)
             cursor.limitation = true
         }
-        else if(phase == "attack" && player.curAP > 0)
+        else if(phase == "attack" && Client.player.curAP > 0)
         {
             setAttackHighlight()
             val p = Map.findHighlight()
@@ -72,17 +75,17 @@ object Game
         else if(phase == "inventory" || phase == "speak" || phase == "trade")
         {
           selectionPhase = false
-          speakingTo = if(phase == "inventory") player else speakingTo
+          speakingTo = if(phase == "inventory") Client.player else speakingTo
         }
         if(selectionPhase && phase != currentPhase)
         {
             if(!Map.fromPoint(cursor.pos).isHighlighted())
             {
-              cursor.setPos(player.pos)
+              cursor.setPos(Client.player.pos)
             }
             if(currentWeapon.zone != Zones.classic _) // other weapon zone should have the cursor on the player's tile
             {
-              cursor.setPos(player.pos)
+              cursor.setPos(Client.player.pos)
             }
         }
         currentPhase = phase
@@ -92,12 +95,12 @@ object Game
     {
         currentPhase match
         {
-            case "move"   => player.move(cursor.pos)
+            case "move"   => Client.player.move(cursor.pos)
                              setPhase("move")
                              //MessageHandler.clear()
 
             case "attack" => MessageHandler.clear()
-                             player.attack(cursor.pos)
+                             Client.player.attack(cursor.pos)
                              setPhase("move")
 
             case "info"   => ()
@@ -111,7 +114,7 @@ object Game
     {
       if(currentPhase == "inventory" || currentPhase == "speak" || currentPhase == "trade")
       {
-        val entity = if(currentPhase == "speak") speakingTo else player
+        val entity = if(currentPhase == "speak") speakingTo else Client.player
         event match
         {
           case "Right"  => entity.inventory.nextPage()
@@ -144,27 +147,27 @@ object Game
         // Zones.classic is different because it attack only on tile, but we need to select which one
         if (currentWeapon.zone == "classic")
         {
-          Map.setHighlight((p:Point)=>p.distance(player.pos) >= currentWeapon.innerRange && p.distance(player.pos) <= currentWeapon.outerRange, true)
+          Map.setHighlight((p:Point)=>p.distance(Client.player.pos) >= currentWeapon.innerRange && p.distance(Client.player.pos) <= currentWeapon.outerRange, true)
         }
         else
-          Map.setHighlight((p:Point)=>currentWeapon.getZone()(currentWeapon.innerRange, currentWeapon.outerRange, cursor.currentDir, player.pos, p), true)
+          Map.setHighlight((p:Point)=>currentWeapon.getZone()(currentWeapon.innerRange, currentWeapon.outerRange, cursor.currentDir, Client.player.pos, p), true)
     }
 
     def initialization() =
     {
         MessageHandler.clear()
 
-        player.pos.setPoint(new Point(4, 4))                                        /////////////////////////////////////////////////////////////!\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-        Map.fromPoint(new Point(4,4)).entity = Some(player)
-        player.inventory.add(WeaponCreator.create())
-        player.inventory.add(WeaponCreator.create("Fire Ball"))
-        player.inventory.add(WeaponCreator.create("sword"))
-        player.inventory.add(ItemCreator.create("chainmail helmet"))
+        Client.player.pos.setPoint(new Point(4, 4))                                        /////////////////////////////////////////////////////////////!\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+        Map.fromPoint(new Point(4,4)).entity = Some(Client.player)
+        Client.player.inventory.add(WeaponCreator.create())
+        Client.player.inventory.add(WeaponCreator.create("Fire Ball"))
+        Client.player.inventory.add(WeaponCreator.create("sword"))
+        Client.player.inventory.add(ItemCreator.create("chainmail helmet"))
         // player.inventory.add(new Bandages)
 
         setPhase("move")
-        player.inventory.display()
-        player.inventory.curInv = 0
+        Client.player.inventory.display()
+        Client.player.inventory.curInv = 0
         // player.endTurn()
 
         // creating and placing enemies :
@@ -176,11 +179,14 @@ object Game
 
     def loop() = 
     {
-        player.endTurn()
-        player.inventory.display()
+        playerVector.foreach
+        {
+            p => p.endTurn()
+        }
+        Client.player.inventory.display()
         speakingTo.inventory.display()
 
-        changeWeapon(player.weapon)
+        changeWeapon(Client.player.weapon)
 
         enemiesVector = enemiesVector.filter(_.curHP > 0) // We remove enemies killed by the player
         enemiesVector.foreach
@@ -201,14 +207,26 @@ object Game
 
         setPhase(currentPhase)    // ensure highlight is up to date
 
-        if(player.curHP <= 0)
+        playerVector.foreach
         {
-          // for now on game over, the game is just reset
-          player.curHP = player.maxHP
-          initialization()
+            p => if(p.curHP <= 0)
+            {
+                var delId = p.id
+                Server.idVector = Server.idVector.filterNot(_ == delId)
+                var sToClose:Socket = Server.clientsVector.find(_.jsocket.getLocalAddress().getHostAddress() == delId) match
+                {
+                    case Some(s) => s
+                    case _ => new Socket(null)   // TODO : raise a proper exception
+                }
+                sToClose.close()
+
+                Server.clientsVector = Server.clientsVector.filterNot(_.jsocket.getLocalAddress().getHostAddress() == delId)
+            }
         }
+        playerVector = playerVector.filter(_.curHP > 0)
+
         Map.update()  // We update the rooms of the map
-        player.displayInfo() // We update the text on screen to update the player's status
+        Client.player.displayInfo() // We update the text on screen to update the player's status
     }
 
     def changeWeapon(weapon:Weapon):Unit=
@@ -219,13 +237,13 @@ object Game
 
     def pickUp():Unit =
     {
-      Map.fromPoint(player.pos).item match
+      Map.fromPoint(Client.player.pos).item match
       {
         case None    => ()
-        case Some(i) => if (player.curWeight + i.weight <= player.maxWeight)
+        case Some(i) => if (Client.player.curWeight + i.weight <= Client.player.maxWeight)
                         {
-                          player.inventory.add(i)
-                          Map.fromPoint(player.pos).item = None
+                          Client.player.inventory.add(i)
+                          Map.fromPoint(Client.player.pos).item = None
                         }
       }
     }
@@ -234,7 +252,7 @@ object Game
     {
       Map.fromPoint(cursor.pos).entity match
       {
-        case Some(e) => if(player.pos.distance(e.pos) <= 1)
+        case Some(e) => if(Client.player.pos.distance(e.pos) <= 1)
                         {
                           speakingTo = e
                           setPhase("speak")
@@ -246,7 +264,7 @@ object Game
     {
       Map.fromPoint(cursor.pos).entity match
       {
-        case Some(e) => if(player.pos.distance(e.pos) <= 1)
+        case Some(e) => if(Client.player.pos.distance(e.pos) <= 1)
                         {
                           speakingTo = e
                           setPhase("trade")
@@ -257,6 +275,6 @@ object Game
 
     def sell():Unit =
     {
-      player.inventory.sell(speakingTo)
+      Client.player.inventory.sell(speakingTo)
     }
 }

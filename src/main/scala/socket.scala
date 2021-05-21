@@ -54,7 +54,7 @@ object Socket {
   def apply(host: String, port: Int)      = new Box(() => new Socket(new JSocket(host, port)))
 }
 
-class Socket(jsocket: JSocket) extends Streamable.Bytes with Closeable {
+class Socket(val jsocket: JSocket) extends Streamable.Bytes with Closeable {
   def inputStream()  = jsocket.getInputStream()
   def outputStream() = jsocket.getOutputStream()
   def getPort()      = jsocket.getPort()

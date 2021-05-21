@@ -14,6 +14,7 @@ import weapon._
 import json._
 import upickle.default._
 import enemy._
+import client._
 
 abstract class Entity(animation:Animation, pos:Point, dest:GraphicsContext) 
     extends GraphicEntity(animation, pos, dest)
@@ -310,7 +311,7 @@ class Cursor(dest:GraphicsContext)
   }
   override def show() = 
   {
-    if(visible && Game.player.curAP > 0)
+    if(visible && Client.player.curAP > 0)
     {
       arrow.show()
       super.show()
@@ -371,7 +372,7 @@ object Player
         json => read[Player](json)
     )
 }
-class Player() 
+class Player(val id:String) 
     extends SentientEntity(new Animation("character.png", 4, sizeY=64), new Point(0,0)) with Serializable
 {
     val name = "Player"

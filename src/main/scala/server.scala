@@ -5,33 +5,61 @@ import java.net.{ ServerSocket, SocketException, SocketTimeoutException, InetAdd
 import java.io.IOException
 import upickle._
 import ujson._
+import game._
+import entity._
 
 import map.Map
 
 
 object Server {
-  val PORT = 6666
 
-  def start():Unit = {
-    val server_socket = new ServerSocket(PORT)
+    val PORT = 6666
+    var idVector:Vector[String] = Vector()
+    var clientsVector:Vector[Socket] = Vector()
 
-    var socket:JSocket = null
-
-    while(true)
+    def isAlreadyThere(id:String):Boolean =
     {
-      try
-      {
-        socket = server_socket.accept()
-      }
-      catch
-      {
-        case e:IOException => println("I/O Error : " + e)
-      }
-      // start new thread for client
-      println("A new client is connected")
-      new ClientThread(new Socket(socket)).start()
+        idVector.foreach
+        {
+            str => if (id == str) {return true}
+        }
+        return false
     }
-  }
+
+    def start():Unit = {
+        val server_socket = new ServerSocket(PORT)
+
+        var socket:JSocket = null
+
+        while(true)
+        {
+            try
+            {
+                socket = server_socket.accept()
+            }
+            catch
+            {
+                case e:IOException => println("I/O Error : " + e)
+            }
+
+            // start new thread for client if the ip address isn't already there
+            var id:String = socket.getLocalAddress().getHostAddress()
+            if (isAlreadyThere(id))
+            {
+                println("An already existing client tried to connect : " + id)
+            }
+            else
+            {
+                println("A new client is connected : " + id)
+                idVector = idVector:+(id)
+                Game.playerVector = Game.playerVector:+(new Player(id))
+
+                val s = new Socket(socket)
+                new ClientThread(s).start()
+                clientsVector = clientsVector:+(s)
+            }
+        }
+    }
 }
 
 class ClientThread(val socket:Socket) extends Thread
@@ -40,6 +68,7 @@ class ClientThread(val socket:Socket) extends Thread
   val out = socket.outputStream()
   val sep = Request.sep
   val end = Request.end
+
   override def run():Unit=
   {
     while(true)
@@ -52,18 +81,22 @@ class ClientThread(val socket:Socket) extends Thread
       }
     }
   }
-
   def read():String =
   {
-    var b = in.read()
-    var res:Array[Byte] = new Array(0)
+    var b:Int = -2
+    var res:String = ""
     val endcode = end.getBytes
-    while (b.toInt != -1 && b != endcode(0))
+    var counter = 0
+    while ((b != -1 || res != "") && counter != endcode.length)
     {
-      res = (new String(res) + (b.toChar).toString).getBytes()
       b = in.read()
+      res = (res + (b.toChar).toString)
+      if (b == endcode(counter))
+        counter += 1
+      else
+        counter  = 0
     }
-    return new String(res)
+    return res
   }
 
   def parse(s:String):Unit=
@@ -76,15 +109,20 @@ class ClientThread(val socket:Socket) extends Thread
     s_arr(0) match
     {
       case "REQUEST" => handle_request(s_arr(1))
-      case "COMMAND" => handle_command(s_arr(2))
+      case "COMMAND" => handle_command(s_arr(1))
       case _ => return // TODO: raise exception
     }
   }
 
   def handle_request(s:String):Unit=
   {
-    val s = Gzip.compress((upickle.default.write(Map.map)+end).getBytes)
-    out.write(s)
+    s match
+    {
+      case "MAP"        => {val s1 = Gzip.compress((upickle.default.write(Map.map)).getBytes)++(end.getBytes); out.write(s1)}
+      case "ID"         =>
+      case "PLAYERS"    => {val s3 = Gzip.compress((upickle.default.write(Game.playerVector)).getBytes)++(end.getBytes); out.write(s3)}    
+      case _ => ()
+    }
   }
 
   def handle_command(s:String):Unit=

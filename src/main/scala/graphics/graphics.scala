@@ -55,7 +55,7 @@ class GraphicEntity(val animation:Animation, val pos:Point, var dest:GraphicsCon
     val frame = animation.frames(currentFrame).getImage()
 
     // We set the offset based on the offset given as a parameter and the player position
-    val off = new Point(Game.player.pos)
+    val off = new Point(Client.player.pos)
     
     val x = w.value/2 + GameWindow.tileSize * (sqrt(3) * (pos.x-off.x)  +  sqrt(3)/2 * (pos.y - off.y))
     val y = h.value/2 + GameWindow.tileSize * (                                3.0/2 * (pos.y - off.y))
@@ -141,8 +141,10 @@ object GameWindow
   def start():Unit =
   {
     Game.initialization()
-    loop.start()
     Map.map = Client.getMap()
+    Client.getPlayer()
+    Client.getPlayerVector()
     println("Client init done")
+    loop.start()
   }
 }
